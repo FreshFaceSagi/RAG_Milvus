@@ -4,14 +4,8 @@ from text_embedding import Embedding
 from pymilvus import MilvusClient as Client
 
 class MilvusClient:
-    def __init__(self, embeddings):
-        self.embeddings = embeddings
-        # Initialize connections and collections here
-
-    def creation_collection(self, collection_name):
-        # Logic to create a collection
-        pass
     
+  
     def __init__(self):
         print("Initializing Milvus Client")
         try:
@@ -65,10 +59,17 @@ class MilvusClient:
             print(f"Error during search: {e}")
             return None
 
-    def insert(self, data):
-        # Logic to insert data into the collection
-        pass
-
-    def search(self, query):
-        # Logic to search in the collection
-        pass
+if __name__ == "__main__":
+    print("Connecting to Milvus!")
+    client = MilvusClient()
+    embedding = Embedding()
+    
+    query = "What is a vector database?"
+    
+    try:
+        query_vector = embedding.do_embedding(query).tolist()
+        print(f"Query vector: {query_vector}")
+        results = client.search("documents_collection", query_vector)
+        print(f"Search results: {results}")
+    except Exception as e:
+        print(f"Error: {e}")
