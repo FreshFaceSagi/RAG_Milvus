@@ -6,13 +6,16 @@ from pymilvus import MilvusClient as Client
 class MilvusClient:
     
     def __init__(self):
+        print("Initializing Milvus Client")
         try:
+            self.collection = None
             self.client = Client("http://localhost:19530", "root", "milvus")
             print(f"Client connected: {self.client}")
         except Exception as e:
             print(f"Error connecting to Milvus: {e}")
 
     def creation_collection(self):
+        print("Creating collection")
         fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=500),
@@ -30,7 +33,11 @@ class MilvusClient:
   
     def search(self, collection_name, query_vector):
         print("Initiated search")
-
+        
+        if not self.collection:
+            print("Collection not found and creating the collection")
+            self.creation_collection()
+        print(f"Using collection: {self.collection}")
         search_params = {
             "metric_type": "COSINE",
             "params": {"nprobe": 10}
@@ -63,14 +70,15 @@ class MilvusClient:
 if __name__ == "__main__":
     print("Connecting to Milvus!")
     client = MilvusClient()
-    embedding = Embedding()
+    client.creation_collection()
+    # embedding = Embedding()
     
-    query = "What is a vector database?"
+    # query = "What is a vector database?"
     
-    try:
-        query_vector = embedding.do_embedding(query).tolist()
-        print(f"Query vector: {query_vector}")
-        results = client.search("documents_collection", query_vector)
-        print(f"Search results: {results}")
-    except Exception as e:
-        print(f"Error: {e}")
+    # try:
+    #     query_vector = embedding.do_embedding(query).tolist()
+    #     print(f"Query vector: {query_vector}")
+    #     results = client.search("documents_collection", query_vector)
+    #     print(f"Search results: {results}")
+    # except Exception as e:
+    #     print(f"Error: {e}")
