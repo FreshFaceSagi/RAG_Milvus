@@ -7,82 +7,70 @@ class MilvusClient:
     
     def __init__(self):
         try:
-            self.client = Client("http://localhost:19530","root","milvus")
-            print(f" self.client :{self.client }")
+            self.client = Client("http://localhost:19530", "root", "milvus")
+            print(f"Client connected: {self.client}")
         except Exception as e:
-          print(e)
-    #   connections.connect(
-    #    host="localhost",
-    #     port="19530"
-    #    )
+            print(f"Error connecting to Milvus: {e}")
 
     def creation_collection(self):
         fields = [
-           FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-           FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=500),
-           FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=384)
-              ]
+            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+            FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=500),
+            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=384)
+        ]
 
         schema = CollectionSchema(fields, description="example collection")
 
         self.collection = Collection(
-         name="documents_collection",
-           schema=schema
-            )
-
-        print("Collection created")
-  
-    def search(self, collection_name, query_vector):
-
-      print("Initiated search")
-
-      search_params = {
-        "metric_type": "COSINE",   # or L2 depending on your index
-        "params": {"nprobe": 10}
-      }
-      self.collection.load()
-      results = self.client.search(
-        collection_name=collection_name,
-        data=[query_vector],          # must be list of vectors
-        anns_field="embedding",
-        search_params=search_params,
-        limit=3,
-        output_fields=["text"]
+            name="documents_collection",
+            schema=schema
         )
 
-      return results
+        print("Collection created successfully")
+  
+    def search(self, collection_name, query_vector):
+        print("Initiated search")
 
+        search_params = {
+            "metric_type": "COSINE",
+            "params": {"nprobe": 10}
+        }
+        
+        try:
+            self.collection.load()
+            results = self.client.search(
+                collection_name=collection_name,
+                data=[query_vector],
+                anns_field="embedding",
+                search_params=search_params,
+                limit=3,
+                output_fields=["text"]
+            )
+            return results
+        except Exception as e:
+            print(f"Error during search: {e}")
+            return None
 
     def insert(self, data):
-       print("Inserting into VectorDB")
-       self.collection.insert(data)
-
-print("Connecting to the milvus Milvus!")
-client = MilvusClient()
-#client.get_connection()
-embedding = Embedding()
-# print(connections.has_connection("default"))
-# print("creating collections")
-# client.creation_collection()
-
-# texts = [
-#     "Milvus is a vector database",
-#     "Artificial intelligence is transforming technology",
-#     "Python is a popular programming language"
-# ]
-
-# embedding = Embedding()
-# vectors = embedding.do_embedding(texts)
-# data = [
-#     texts,
-#     vectors.tolist()
-# ]
-# print(vectors.tolist())
-# client.insert(data)
+        try:
+            print("Inserting into VectorDB")
+            self.collection.insert(data)
+            print("Data inserted successfully")
+        except Exception as e:
+            print(f"Error inserting data: {e}")
 
 
-query = "What is a vector database?"
-
-query_vector = embedding.do_embedding(query).tolist()
-print(query_vector)
-print(client.search("documents_collection",query_vector))
+if __name__ == "__main__":
+    print("Connecting to Milvus!")
+    client = MilvusClient()
+    embedding = Embedding()
+    
+    query = "What is a vector database?"
+    
+    try:
+        query_vector = embedding.do_embedding(query).tolist()
+        print(f"Query vector: {query_vector}")
+        results = client.search("documents_collection", query_vector)
+        print(f"Search results: {results}")
+    except Exception as e:
+        print(f"Error: {e}")
