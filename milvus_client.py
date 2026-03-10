@@ -5,71 +5,146 @@ from pymilvus import MilvusClient as Client
 
 class MilvusClient:
     
-  
     def __init__(self):
-        print("Initializing Milvus Client")
         try:
-            self.collection = None
-            self.client = Client("http://localhost:19530", "root", "milvus")
-            print(f"Client connected: {self.client}")
+            self.client = Client("http://localhost:19530","root","milvus")
+            print(f" self.client :{self.client }")
         except Exception as e:
-            print(f"Error connecting to Milvus: {e}")
+          print(e)
+    #   connections.connect(
+    #    host="localhost",
+    #     port="19530"
+    #    )
 
-    def creation_collection(self):
-        print("Creating collection")
-        fields = [
-            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-            FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=500),
-            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=384)
-        ]
-
-        schema = CollectionSchema(fields, description="example collection")
-
-        self.collection = Collection(
-            name="documents_collection",
-            schema=schema
+    def creation_collection(self,collection_name="documents_collection"):
+        print("Creating collection with explicit schema")
+        if self.client.has_collection(collection_name):
+            print("Collection already exists.")
+            return
+        # 1. Create Schema
+        schema = self.client.create_schema(
+            auto_id=True,
+            enable_dynamic_field=True,
         )
 
+        # 2. Add Fields
+        schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
+        schema.add_field(field_name="text", datatype=DataType.VARCHAR, max_length=500)
+        schema.add_field(field_name="embedding", datatype=DataType.FLOAT_VECTOR, dim=384)
+
+        # 3. Prepare Index Parameters
+        index_params = self.client.prepare_index_params()
+        index_params.add_index(
+            field_name="embedding", 
+            metric_type="COSINE", 
+            index_type="IVF_FLAT", 
+            params={"nlist": 128}
+        )
+
+        # 4. Create the collection using the client
+        self.client.create_collection(
+            collection_name=collection_name,
+            schema=schema,
+            index_params=index_params
+        )
         print("Collection created successfully")
+
   
     def search(self, collection_name, query_vector):
         print("Initiated search")
         
-        if not self.collection:
-            print("Collection not found and creating the collection")
-            self.creation_collection()
-        print(f"Using collection: {self.collection}")
-        search_params = {
-            "metric_type": "COSINE",
-            "params": {"nprobe": 10}
-        }
+        # 1. Ensure collection exists
+        if not self.client.has_collection(collection_name):
+            print("Collection not found. Creating it...")
+            self.creation_collection(collection_name)
         
         try:
-            self.collection.load()
+            # 2. LOAD THE COLLECTION (Crucial Step)
+            # This moves the index from disk to RAM so it can be searched
+            self.client.load_collection(collection_name=collection_name)
+            
+            # 3. Perform the search
             results = self.client.search(
                 collection_name=collection_name,
                 data=[query_vector],
-                anns_field="embedding",
-                search_params=search_params,
                 limit=3,
-                output_fields=["text"]
+                output_fields=["text"],
+                search_params={"metric_type": "COSINE", "params": {}}
             )
             return results
         except Exception as e:
             print(f"Error during search: {e}")
             return None
 
+
+    def insert_data(self, collection_name, texts, embeddings):
+        print(f"Inserting {len(texts)} entities...")
+        
+        # Ensure collection exists first
+        if not self.client.has_collection(collection_name):
+            print("Collection not found. Creating it..through insert emthod.")
+            self.creation_collection(collection_name)
+
+        # Format data as a list of dictionaries (rows)
+        # Do NOT include "id" because auto_id=True is set in schema
+        data = [
+            {"text": text, "embedding": vector}
+            for text, vector in zip(texts, embeddings)
+        ]
+
+        try:
+            res = self.client.insert(
+                collection_name=collection_name,
+                data=data
+            )
+            print(f"Insert successful. Count: {res['insert_count']}")
+            return res
+        except Exception as e:
+            print(f"Error during insertion: {e}")
+            return None
+      
+   
+
+      
 if __name__ == "__main__":
     print("Connecting to Milvus!")
     client = MilvusClient()
     embedding = Embedding()
-    
-    query = "What is a vector database?"
-    
-    try:
-        query_vector = embedding.do_embedding(query).tolist()
-        print(f"Query vector: {query_vector}")
-        results = client.search("documents_collection", query_vector)
-        print(f"Search results: {results}")
-    except Exception as e:
-        print(f"Error: {e}")
+     # 1. Prepare data
+    #texts = ["Vector databases are great for AI.", "Milvus is an open-source vector DB."]
+    detailed_description = (
+    "A vector database is a high-performance data management system specifically engineered to store, "
+    "index, and query vector embeddings. Unlike traditional relational databases that use tables of "
+    "rows and columns to find exact matches, vector databases operate in a multi-dimensional mathematical "
+    "space to find data based on semantic meaning. Core features include Vector Embeddings, which are "
+    "numerical arrays generated by ML models, and High-Dimensional Space where items with similar "
+    "meanings are positioned geometrically close to each other. To find results, the database uses "
+    "Distance Metrics like Cosine Similarity or Euclidean Distance and optimized indexing like "
+    "HNSW or IVF for Approximate Nearest Neighbor (ANN) search. This technology is essential for "
+    "Retrieval-Augmented Generation (RAG), acting as long-term memory for AI models to prevent hallucinations."
+)
+        # 2. Split it into chunks
+    text_chunks = embedding.get_chunks(detailed_description)
+    print(f"Split into {len(text_chunks)} chunks.")
+
+    # 3. Embed and Insert
+    data_to_insert = []
+    for chunk in text_chunks:
+        vector = embedding.do_embedding(chunk).tolist()
+        data_to_insert.append({"text": chunk, "embedding": vector})
+
+    # 4. Batch Insert
+    client.client.insert(
+        collection_name="Bala_collectrion",
+        data=data_to_insert
+    )
+    print("All chunks inserted successfully!")
+    # vectors = [embedding.do_embedding(t).tolist() for t in [detailed_description]]
+
+    # # 2. Insert
+    # client.insert_data("Bala_collectrion", [detailed_description], vectors)
+
+    # 3. Search
+    query_vec = embedding.do_embedding("What is Milvus?").tolist()
+    results = client.search("Bala_collectrion", query_vec)
+    print(results)
